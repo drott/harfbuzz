@@ -10,6 +10,11 @@ from multiprocessing import Pool
 import os
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import io
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("example_no", help="Choose example number", type=int)
+args = parser.parse_args()
 
 font_ptem_sizes = [
     3,
@@ -38,9 +43,11 @@ font_ptem_sizes = [
     150,
 ]
 shapers = ["ot", "coretext"]
-# shape_text, font_path = ( "ABC", "../test/shaping/data/in-house/fonts/TestTRAK.ttf")
-# shape_text, font_path = ( "YoVa", "/System/Library/Fonts/SFNSText.ttf")
-shape_text, font_path = ("HH", "TestTRAKOne.ttf")
+shape_text, font_path = [
+    ("ABC", "../test/shaping/data/in-house/fonts/TestTRAK.ttf"),
+    ("YoVa", "/System/Library/Fonts/SFNSText.ttf"),
+    ("HH", "TestTRAKOne.ttf"),
+][args.example_no]
 features = "+kern"
 
 
