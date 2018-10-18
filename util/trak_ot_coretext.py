@@ -89,7 +89,7 @@ def get_hb_shape_results_for_ptem_size(font_ptem_size):
             font_path,
             shape_text,
         ]
-        result += "$ %s\n" % (u" ".join(hb_shape_command_line))
+        result += "$ %s\n" % (" ".join(hb_shape_command_line))
         proc = subprocess.Popen(
             hb_shape_command_line, shell=False, stdout=subprocess.PIPE
         )
