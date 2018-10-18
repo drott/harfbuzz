@@ -78,8 +78,8 @@ image_pairs = p.map(get_image_for_ptem_size, font_ptem_sizes)
 max_x = 0
 acc_y = 0
 for image in [image for image_pair in image_pairs for image in image_pair]:
-    max_x = max(max_x, image.getbbox()[2])
-    acc_y += image.getbbox()[3]
+    max_x = max(max_x, image.width)
+    acc_y += image.height
 composite_image = Image.new("RGBA", (max_x, acc_y))
 insert_position = 0
 for font_ptem_size_index, (image_ot, image_coretext) in enumerate(image_pairs, 0):
