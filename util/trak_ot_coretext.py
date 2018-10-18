@@ -3,8 +3,8 @@
 # $ pip3 install Pillow
 # Run as follows:
 # $ cd ./util
-# $ ./trak_ot_coretext.py
-# Open coretext_green_ot_red.png using "open" or "eog"
+# $ ./trak_ot_coretext.py (0|1|2) filename.png
+# Open filename.png using "open" or "eog"
 import subprocess
 from multiprocessing import Pool
 import os
