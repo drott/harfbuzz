@@ -5,16 +5,22 @@
 # $ cd ./util
 # $ ./trak_ot_coretext.py (0|1|2) filename.png
 # Open filename.png using "open" or "eog"
-import subprocess
-from multiprocessing import Pool
-import os
 from PIL import Image, ImageOps, ImageDraw, ImageFont
-import io
+from multiprocessing import Pool
 import argparse
+import io
+import os
+import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument("example_no", help="Choose example number", type=int)
 parser.add_argument("filename", help="Output filename", type=str)
+parser.add_argument(
+    "--shape-data",
+    help="Output hb-shape data to stdout for the same examples",
+    action="store_true",
+    default=False,
+)
 args = parser.parse_args()
 
 font_ptem_sizes = [
@@ -72,37 +78,77 @@ def get_image_for_ptem_size(font_ptem_size):
     return images
 
 
-p = Pool(os.cpu_count() - 1)
-image_pairs = p.map(get_image_for_ptem_size, font_ptem_sizes)
+def get_hb_shape_results_for_ptem_size(font_ptem_size):
+    result = ""
+    for shaper in shapers:
+        hb_shape_command_line = [
+            "./hb-shape",
+            "--features=%s" % features,
+            "--font-ptem=%d" % font_ptem_size,
+            "--shaper=%s" % shaper,
+            font_path,
+            shape_text,
+        ]
+        result += "$ %s\n" % (u" ".join(hb_shape_command_line))
+        proc = subprocess.Popen(
+            hb_shape_command_line, shell=False, stdout=subprocess.PIPE
+        )
+        result += proc.communicate()[0].decode("utf-8")
+        result += "\n"
+    return result
 
-max_x = 0
-acc_y = 0
-for image in [image for image_pair in image_pairs for image in image_pair]:
-    max_x = max(max_x, image.width)
-    acc_y += image.height
-composite_image = Image.new("RGBA", (max_x, acc_y))
-insert_position = 0
-for font_ptem_size_index, (image_ot, image_coretext) in enumerate(image_pairs, 0):
-    merged_size = (
-        max(image_ot.width, image_coretext.width),
-        max(image_ot.height, image_coretext.height),
+
+def retrieve_hp_shape_data(p):
+    hb_shape_data_for_ptem_sizes = p.map(
+        get_hb_shape_results_for_ptem_size, font_ptem_sizes
     )
-    alpha_blended = Image.new("RGBA", merged_size)
-    alpha_blended.paste(
-        ImageOps.colorize(image_coretext, "Green", "White"),
-        (0, 0),
-        Image.new("L", image_coretext.size, 255),
-    )
-    alpha_blended.paste(
-        ImageOps.colorize(image_ot, "Red", "White"),
-        (0, 0),
-        Image.new("L", image_ot.size, 127),
-    )
-    draw_context = ImageDraw.Draw(alpha_blended)
-    font = ImageFont.load_default()
-    draw_context.text(
-        (10, 10), "ptem: %s" % font_ptem_sizes[font_ptem_size_index], fill="Black"
-    )
-    composite_image.paste(alpha_blended, (0, insert_position))
-    insert_position += merged_size[1]
-composite_image.save(args.filename)
+    for ptem_index, hb_shape_data_for_ptem in enumerate(
+        hb_shape_data_for_ptem_sizes, 0
+    ):
+        with open(args.filename, "a") as f:
+            f.write(
+                "ptem: %s\n\n%s" % (font_ptem_sizes[ptem_index], hb_shape_data_for_ptem)
+            )
+
+
+def perform_visual_comparison(p):
+    image_pairs = p.map(get_image_for_ptem_size, font_ptem_sizes)
+    max_x = 0
+    acc_y = 0
+    for image in [image for image_pair in image_pairs for image in image_pair]:
+        max_x = max(max_x, image.width)
+        acc_y += image.height
+    composite_image = Image.new("RGBA", (max_x, acc_y))
+    insert_position = 0
+    for font_ptem_size_index, (image_ot, image_coretext) in enumerate(image_pairs, 0):
+        merged_size = (
+            max(image_ot.width, image_coretext.width),
+            max(image_ot.height, image_coretext.height),
+        )
+        alpha_blended = Image.new("RGBA", merged_size)
+        alpha_blended.paste(
+            ImageOps.colorize(image_coretext, "Green", "White"),
+            (0, 0),
+            Image.new("L", image_coretext.size, 255),
+        )
+        alpha_blended.paste(
+            ImageOps.colorize(image_ot, "Red", "White"),
+            (0, 0),
+            Image.new("L", image_ot.size, 127),
+        )
+        draw_context = ImageDraw.Draw(alpha_blended)
+        font = ImageFont.load_default()
+        draw_context.text(
+            (10, 10), "ptem: %s" % font_ptem_sizes[font_ptem_size_index], fill="Black"
+        )
+        composite_image.paste(alpha_blended, (0, insert_position))
+        insert_position += merged_size[1]
+    composite_image.save(args.filename)
+
+
+if __name__ == "__main__":
+    p = Pool(os.cpu_count() - 1)
+    if not args.shape_data:
+        perform_visual_comparison(p)
+    else:
+        retrieve_hp_shape_data(p)
