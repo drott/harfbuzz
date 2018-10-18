@@ -14,6 +14,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("example_no", help="Choose example number", type=int)
+parser.add_argument("filename", help="Output filename", type=str)
 args = parser.parse_args()
 
 font_ptem_sizes = [
@@ -104,4 +105,4 @@ for font_ptem_size_index, (image_ot, image_coretext) in enumerate(image_pairs, 0
     )
     composite_image.paste(alpha_blended, (0, insert_position))
     insert_position += merged_size[1]
-composite_image.save("coretext_green_ot_red.png")
+composite_image.save(args.filename)
