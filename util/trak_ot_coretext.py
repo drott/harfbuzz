@@ -10,6 +10,7 @@ from multiprocessing import Pool
 import argparse
 import io
 import os
+import re
 import subprocess
 
 parser = argparse.ArgumentParser()
@@ -21,6 +22,10 @@ parser.add_argument(
     action="store_true",
     default=False,
 )
+parser.add_argument("--align-ct-ot-start",
+                    help="Try to align the start of the CoreText and OT AAT run",
+                    action='store_true',
+                    default=False)
 args = parser.parse_args()
 
 font_ptem_sizes = [
@@ -98,25 +103,41 @@ def get_hb_shape_results_for_ptem_size(font_ptem_size):
     return result
 
 
+def write_hp_shape_data_to_file(p):
+    hb_shape_data = retrieve_hp_shape_data(p)
+    with open(args.filename, "a") as f:
+        f.write(hb_shape_data)
+
 def retrieve_hp_shape_data(p):
     hb_shape_data_for_ptem_sizes = p.map(
         get_hb_shape_results_for_ptem_size, font_ptem_sizes
     )
+    hb_shape_data = ""
     for ptem_index, hb_shape_data_for_ptem in enumerate(
         hb_shape_data_for_ptem_sizes, 0
     ):
-        with open(args.filename, "a") as f:
-            f.write(
-                "ptem: %s\n\n%s" % (font_ptem_sizes[ptem_index], hb_shape_data_for_ptem)
-            )
+        hb_shape_data += "ptem: %s\n\n%s" % (font_ptem_sizes[ptem_index], hb_shape_data_for_ptem)
+    return hb_shape_data
 
+
+def extract_coretext_start_offset_corrections(p):
+    hb_shape_results = retrieve_hp_shape_data(p)
+    correction_offsets = []
+    for match in re.finditer(r"\[\w+=0@([0-9\-]*),0\+", hb_shape_results, re.MULTILINE):
+        correction_offsets.append(round(-int(match.groups()[0])/7))
+    # print (correction_offsets)
+    return correction_offsets
 
 def perform_visual_comparison(p):
+    if (args.align_ct_ot_start):
+        correction_offsets = extract_coretext_start_offset_corrections(p)
     image_pairs = p.map(get_image_for_ptem_size, font_ptem_sizes)
     max_x = 0
     acc_y = 0
     for image in [image for image_pair in image_pairs for image in image_pair]:
         max_x = max(max_x, image.width)
+        if (args.align_ct_ot_start):
+            max_x += max(correction_offsets)
         acc_y += image.height
     composite_image = Image.new("RGBA", (max_x, acc_y))
     insert_position = 0
@@ -131,9 +152,12 @@ def perform_visual_comparison(p):
             (0, 0),
             Image.new("L", image_coretext.size, 255),
         )
+        ot_offset = (0,0)
+        if (args.align_ct_ot_start):
+            ot_offset = (correction_offsets[font_ptem_size_index], 0)
         alpha_blended.paste(
             ImageOps.colorize(image_ot, "Red", "White"),
-            (0, 0),
+            ot_offset,
             Image.new("L", image_ot.size, 127),
         )
         draw_context = ImageDraw.Draw(alpha_blended)
@@ -151,4 +175,4 @@ if __name__ == "__main__":
     if not args.shape_data:
         perform_visual_comparison(p)
     else:
-        retrieve_hp_shape_data(p)
+        write_hp_shape_data_to_file(p)
