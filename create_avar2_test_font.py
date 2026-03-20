@@ -345,11 +345,9 @@ def main():
     # Loc 1: CKRN = 0.5
     # Loc 2: CKRN = 1.0
     #
-    avar_locs = [
-        {}, # Base
-        {"CKRN": 0.5},
-        {"CKRN": 1.0},
-    ]
+    avar_locs = [{}]
+    for i in range(1, 9):
+        avar_locs.append({"CKRN": i / 8.0})
     avar_model = VariationModel(avar_locs, axisOrder=["CKRN"])
     
     # Deltas for XKRN (internal axis index 1):
@@ -372,15 +370,23 @@ def main():
     # Item 1 (XKRN): computed deltas
     # Item 2 (YKRN): computed deltas
     
-    deltas_CKRN_raw = avar_model.getDeltas([0, 0, 0])[1:]
-    deltas_XKRN_raw = avar_model.getDeltas([0.0, 0.293, 1.0])[1:] # base 0.0, m1 0.293, m2 1.0
-    deltas_YKRN_raw = avar_model.getDeltas([0.0, 0.707, 1.0])[1:] # base 0.0, m1 0.707, m2 1.0
+    import math
+    vals_X = [0.0]
+    vals_Y = [0.0]
+    for i in range(1, 9):
+        theta = (i / 8.0) * (math.pi / 2)
+        vals_X.append(1 - math.cos(theta))
+        vals_Y.append(math.sin(theta))
+        
+    deltas_XKRN_raw = avar_model.getDeltas(vals_X)[1:]
+    deltas_YKRN_raw = avar_model.getDeltas(vals_Y)[1:]
+    deltas_CKRN_raw = avar_model.getDeltas([0.0] * 9)[1:]
     
     deltas_CKRN_int = [int(round(d * 16384)) for d in deltas_CKRN_raw]
     deltas_XKRN_int = [int(round(d * 16384)) for d in deltas_XKRN_raw]
     deltas_YKRN_int = [int(round(d * 16384)) for d in deltas_YKRN_raw]
     
-    avar_varData = buildVarData([0, 1], [ # Region indices 0 and 1
+    avar_varData = buildVarData(list(range(8)), [ # Region indices 0 to 7
         deltas_CKRN_int,
         deltas_XKRN_int,
         deltas_YKRN_int
