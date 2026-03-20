@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>avar2 Modern Kerning Visualizer</title>
+    <style>
+        @font-face {
+            font-family: 'AvarTestFont';
+            src: url('avar2_kern_test.ttf') format('truetype');
+        }
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: sans-serif;
+            background: #ffffff;
+            color: #000000;
+        }
+        #display {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+        .test-case {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .label {
+            font-size: 1.2rem;
+            font-family: sans-serif;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .glyphs {
+            font-family: 'AvarTestFont';
+            font-size: 15rem; /* Reduced to fit both test cases */
+            line-height: 1;
+        }
+        .controls {
+            margin-top: 3rem;
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .slider-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        input[type=range] {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="display">
+        <div class="test-case">
+            <span class="glyphs">&#x2316;&#x2316;</span>
+        </div>
+        <div class="test-case">
+            <span class="glyphs">&#x2316; &#x2316;</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="slider-header">
+            <span>CKRN</span>
+            <span id="valDisplay">0.00</span>
+        </div>
+        <input type="range" id="ckrnSlider" min="0" max="100" value="0" step="1">
+    </div>
+
+    <script>
+        const slider = document.getElementById('ckrnSlider');
+        const display = document.getElementById('display');
+        const valDisplay = document.getElementById('valDisplay');
+
+        // Parse CKRN GET parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const ckrnParam = urlParams.get('CKRN');
+        if (ckrnParam !== null) {
+            const val = parseFloat(ckrnParam);
+            if (!isNaN(val) && val >= 0 && val <= 1) {
+                slider.value = val * 100;
+            }
+        }
+
+        function update() {
+            // Map 0-100 to 0.0-1.0
+            const physicalValue = slider.value / 100;
+            valDisplay.textContent = physicalValue.toFixed(2);
+            
+            // Apply font variation settings
+            display.style.fontVariationSettings = `'CKRN' ${physicalValue}`;
+        }
+
+        slider.addEventListener('input', update);
+        if (ckrnParam !== null) {
+            update(); // Initial call only if parameter is present
+        }
+    </script>
+</body>
+</html>
