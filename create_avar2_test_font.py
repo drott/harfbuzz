@@ -132,74 +132,90 @@ def main():
     # Value2: YPlacement
     # Let's create a GPOS table.
     
-    # Custom GPOS table binary
-    from fontTools.ttLib.tables.DefaultTable import DefaultTable
-    class table_custom_GPOS(DefaultTable):
-        def __init__(self, data):
-            self.data = data
-        def compile(self, font):
-            return self.data
-        def decompile(self, data, font):
-            self.data = data
-            
-    # Glyphs: .notdef (0), space (1), cross (2)
-    # We want a kerning pair (space, cross) with YPlacement variation using YKRN axis.
-    # We will use VarStore in GDEF (which we define later).
-    # Since we have only 1 row in our VarStore, we point to OuterIndex 0, InnerIndex 0.
+    # 3. Setup GPOS with variable kerning using fontTools.otTables
+    gpos = ot.GPOS()
+    gpos.Version = 0x00010000
     
-    gpos_binary = bytearray()
+    # ScriptList
+    scriptList = ot.ScriptList()
+    scriptList.ScriptRecord = []
+    scriptRecord = ot.ScriptRecord()
+    scriptRecord.ScriptTag = "DFLT"
+    scriptRecord.Script = ot.Script()
+    scriptRecord.Script.DefaultLangSys = ot.LangSys()
+    scriptRecord.Script.DefaultLangSys.ReqFeatureIndex = 0xFFFF
+    scriptRecord.Script.DefaultLangSys.FeatureIndex = [0]
+    scriptRecord.Script.LangSysRecord = []
+    scriptList.ScriptRecord.append(scriptRecord)
+    gpos.ScriptList = scriptList
     
-    # 0: Header
-    gpos_binary += struct.pack(">LHHH", 0x00010000, 10, 30, 44)
+    # FeatureList
+    featureList = ot.FeatureList()
+    featureList.FeatureRecord = []
+    featureRecord = ot.FeatureRecord()
+    featureRecord.FeatureTag = "kern"
+    featureRecord.Feature = ot.Feature()
+    featureRecord.Feature.LookupListIndex = [0]
+    featureRecord.Feature.FeatureParams = None
+    featureList.FeatureRecord.append(featureRecord)
+    gpos.FeatureList = featureList
     
-    # 10: ScriptList
-    gpos_binary += struct.pack(">H", 1) # count
-    gpos_binary += b'DFLT'
-    gpos_binary += struct.pack(">H", 8) # offset to ScriptTable (relative to 10) -> 18
+    # LookupList
+    lookupList = ot.LookupList()
+    lookupList.Lookup = []
+    lookup = ot.Lookup()
+    lookup.LookupType = 2 # PairPos
+    lookup.LookupFlag = 0
+    lookup.SubTable = []
     
-    # 18: ScriptTable
-    gpos_binary += struct.pack(">HH", 4, 0) # offset to DefaultLangSys (relative to 18) -> 22, count 0
+    # SubTable for PairPosFormat1
+    pairPos = ot.PairPos()
+    pairPos.Format = 1
+    pairPos.ValueFormat1 = 0
+    pairPos.ValueFormat2 = 0x0033 # XPlacement | YPlacement | XPlaDevice | YPlaDevice
     
-    # 22: DefaultLangSys
-    gpos_binary += struct.pack(">HHH", 0, 0xFFFF, 1) # lookupOrder (0), reqFeature (65535), FeatureCount (1)
-    gpos_binary += struct.pack(">H", 0) # Feature 0
+    # Coverage
+    coverage = ot.Coverage()
+    coverage.Format = 1
+    coverage.glyphs = ["cross"]
+    pairPos.Coverage = coverage
     
-    # 30: FeatureList
-    gpos_binary += struct.pack(">H", 1) # count
-    gpos_binary += b'kern'
-    gpos_binary += struct.pack(">H", 8) # offset to FeatureTable (relative to 30) -> 38
+    # PairSet
+    pairPos.PairSet = []
+    pairSet = ot.PairSet()
+    pairSet.PairValueRecord = []
+    pairValueRecord = ot.PairValueRecord()
+    pairValueRecord.SecondGlyph = "cross"
     
-    # 38: FeatureTable
-    gpos_binary += struct.pack(">HH", 0, 1) # FeatureParams (0), LookupCount (1)
-    gpos_binary += struct.pack(">H", 0) # Lookup 0
+    # Value2
+    value2 = ot.ValueRecord()
+    value2.XPlacement = 0
+    value2.YPlacement = 0
     
-    # 44: LookupList
-    gpos_binary += struct.pack(">H", 1) # count
-    gpos_binary += struct.pack(">H", 4) # offset (relative to 44) -> 48
+    deviceX = ot.Device()
+    deviceX.DeltaFormat = 0x8000
+    deviceX.StartSize = 0
+    deviceX.EndSize = 1
+    value2.XPlaDevice = deviceX
     
-    # 48: LookupTable
-    gpos_binary += struct.pack(">HHH", 2, 0, 1) # type 2 (PairPos), flag 0, count 1
-    gpos_binary += struct.pack(">H", 8) # subtable offset (relative to 48) -> 56
+    deviceY = ot.Device()
+    deviceY.DeltaFormat = 0x8000
+    deviceY.StartSize = 0
+    deviceY.EndSize = 0
+    value2.YPlaDevice = deviceY
     
-    # 56: PairPosFormat1
-    gpos_binary += struct.pack(">HHHH", 1, 12, 0, 0x0033) # format 1, cov_offset (relative to 56) -> 68, format1 0, format2 51 (XPlacement+YPlacement+Devices)
-    gpos_binary += struct.pack(">HH", 1, 18) # pairsetcount 1, offset (relative to 56) -> 74
+    pairValueRecord.Value2 = value2
+    # Value2 is None
     
-    # 68: Coverage (Format 1)
-    gpos_binary += struct.pack(">HHH", 1, 1, 2) # format 1, count 1, glyph 'cross' (2)
+    pairSet.PairValueRecord.append(pairValueRecord)
+    pairPos.PairSet.append(pairSet)
     
-    # 74: PairSet
-    gpos_binary += struct.pack(">HH", 1, 2) # count 1, glyph 'cross' (2)
-    # ValueRecord (XPlacement, YPlacement, XPlaDevice, YPlaDevice)
-    gpos_binary += struct.pack(">HHHH", 0, 0, 12, 18) # XPlacement 0, YPlacement 0, XDevice offset 12 (relative to 74) -> 86, YDevice offset 18 (relative to 74) -> 92
+    lookup.SubTable.append(pairPos)
+    lookupList.Lookup.append(lookup)
+    gpos.LookupList = lookupList
     
-    # 86: Device Table for XPlacement (Format 0x8000 for VariationDevice)
-    gpos_binary += struct.pack(">HHH", 0, 1, 0x8000) # outer 0, inner 1 (points to Row 1 of GDEF VarStore), format 0x8000
-    
-    # 92: Device Table for YPlacement (Format 0x8000 for VariationDevice)
-    gpos_binary += struct.pack(">HHH", 0, 0, 0x8000) # outer 0, inner 0 (points to Row 0 of GDEF VarStore), format 0x8000
-    
-    fb.font["GPOS"] = table_custom_GPOS(bytes(gpos_binary))
+    fb.font["GPOS"] = newTable("GPOS")
+    fb.font["GPOS"].table = gpos
     
     # Now variable GPOS!
     # We need to add VariationStore to GPOS.
