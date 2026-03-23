@@ -400,6 +400,24 @@ struct avar
       int v = coords[i];
       uint32_t varidx = varidx_map.map (i);
       float delta = var_store.get_delta (varidx, coords_2_14.arrayZ, coords_2_14.length, var_store_cache);
+      
+      if (i < 3) {
+        const char* tag = "UNKN";
+        if (i == 0) tag = "CKRN";
+        else if (i == 1) tag = "XKRN";
+        else if (i == 2) tag = "YKRN";
+
+        // Assuming 1024 UPEM for font units conversion from normalized coordinates
+        // 1.0 (normalized) = 1024 font units
+        // normalized = value / 65536.f (for 16.16) or value / 16384.f (for 2.14)
+        // font units = normalized * 1024
+        // For 16.16: value / 65536.f * 1024 = value / 64.f
+        // For 2.14:  value / 16384.f * 1024 = value / 16.f
+
+        fprintf(stderr, "AVAR2_DEBUG: [%-4s] before: %8.5f (fu %8.2f), delta: %8.5f (fu %8.2f), after: %8.5f\n", 
+                tag, v / 65536.f, v / 64.f, delta / 16384.f, delta / 16.f, (v + roundf(delta * 4)) / 65536.f);
+      }
+
       v += roundf (delta * 4); // 2.14 -> 16.16
       v = hb_clamp (v, -(1<<16), +(1<<16));
       out.push (v);
