@@ -22,6 +22,10 @@ XKRN and YKRN should be set to hidden in the fvar variations table.
 
 An exposed axis CKRN should be created that controls the counterclockwise rotation, by driving the hidden axis XKRN and YKRN through avar2.
 
+The XKRN adjustment is expected to be proportional to the cosine portion of the counterclockwise 90 degree arc. 
+
+The YKRN adjustment is expected to be proportional to the sine portion of the counterclockwise 90 degree arc.
+
 The test codepoints are U+2316 (CROSS) and U+0020 (SPACE).
 
 ## Final font production 
@@ -32,3 +36,7 @@ For getting standard tables like OS/2, hvar etc. right, at the end of font gener
 ## fontTools.ttx usage instructions
 
 When generating output files, use an -o parameter to avoid creating too many temporary noisy files.
+
+## Files
+
+Make the final test file be called avar2_kern_test.ttf. Do not pollute the top level project directory with temporary/dump files. Use dump/ subfolder for those.

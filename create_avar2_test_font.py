@@ -121,10 +121,15 @@ def main():
     # Add axes
     axes = [
         ("CKRN", 0, 0, 1, "Control Axis"),
-        ("XKRN", 0, 1, 1, "X Kern"), # Default 1 to represent on the right
+        ("XKRN", 0, 0, 1, "X Kern"), # Default 0 (side-by-side with 0 shift)
         ("YKRN", 0, 0, 1, "Y Kern"), # Default 0
     ]
     fb.setupFvar(axes, [])
+    
+    # Hide XKRN and YKRN
+    for axis in fb.font["fvar"].axes:
+        if axis.axisTag in ["XKRN", "YKRN"]:
+            axis.flags = 0x0001
     
     # Setup GPOS with variable kerning
     # We want a SinglePos or PairPos. User wants PairPos for (cross, cross).
@@ -242,47 +247,23 @@ def main():
     
     locations = [
         {}, 
-        {"XKRN": 1.0}, # Fixed from -1.0 to 1.0 (positive master)
+        {"XKRN": 1.0},
         {"YKRN": 1.0},
     ]
     # Variation Model
     model = VariationModel(locations, axisOrder=["CKRN", "XKRN", "YKRN"])
     
-    # Now deltas for XAdvance(Value1) and YPlacement(Value2).
-    # - XAdvance should be driven by XKRN.
-    #   When XKRN=1, shift = Max_Shift (say 100).
-    #   When XKRN=0, shift = 0.
-    #   So master values for XAdvance: [100, 0].
-    # - YPlacement should be driven by YKRN.
-    #   When YKRN=1, shift = Max_Shift (say 100).
-    #   When YKRN=0, shift = 0.
-    #   So master values for YPlacement: [0, 100].
+    # Using supports[1:] and indices [0, 1]
+    regionList = buildVarRegionList(model.supports[1:], ["CKRN", "XKRN", "YKRN"])
     
-    # FontBuilder/VarLib builder can build ItemVariationStore.
-    # We need to pass the deltas for each "item" (ValueRecord).
-    # Item 1: Value1 XAdvance Device
-    # Item 2: Value2 YPlacement Device
+    # Target values at locations: Base, LocA (XKRN=1), LocC (YKRN=1)
+    # Target X Shift: [0, -1024, 0]
+    # Target Y Shift: [0, 0, 1024]
     
-    # Delta values for Item 1 (XAdvance): [Location1Value, Location2Value]
-    # Location 1: XKRN=1. Value should be 100.
-    # Location 2: YKRN=1. Value should be 0.
-    # So deltas for Item 1 are [100, 0].
+    x_deltas_raw = model.getDeltas([0, -1024, 0])[1:] 
+    y_deltas_raw = model.getDeltas([0, 0, 1024])[1:] 
     
-    # Delta values for Item 2 (YPlacement):
-    # Location 1: XKRN=1. Value should be 0.
-    # Location 2: YKRN=1. Value should be 100.
-    # So deltas for Item 2 are [0, 100].
-    
-    # Using lower level tools
-    regionList = buildVarRegionList(model.supports, ["CKRN", "XKRN", "YKRN"])
-    
-    # Values for Item (Master values for [base, loc1_XKRN_min, loc2_YKRN_max])
-    # Item 1 (YPlacement): base 0, loc1 0, loc2 100
-    
-    x_deltas_raw = model.getDeltas([0, -1024, 0])[1:] # Base 0, XKRN_max=-1024, YKRN_max=0
-    y_deltas_raw = model.getDeltas([0, 0, 1024])[1:] # Base 0, XKRN_max=0, YKRN_max=1024
-    
-    varData = buildVarData([1, 2], [y_deltas_raw, x_deltas_raw]) # Row 0 is Y, Row 1 is X
+    varData = buildVarData([0, 1], [y_deltas_raw, x_deltas_raw]) # Row 0 is Y, Row 1 is X
     varStore = buildVarStore(regionList, [varData])
     
     # Set VarStore in GDEF version 1.3!
@@ -361,48 +342,31 @@ def main():
     # Loc 1: CKRN = 0.5
     # Loc 2: CKRN = 1.0
     #
-    avar_locs = [{}]
-    for i in range(1, 9):
-        avar_locs.append({"CKRN": i / 8.0})
+    num_segments = 10
+    avar_locs = [{}] + [{"CKRN": i / num_segments} for i in range(1, num_segments + 1)]
     avar_model = VariationModel(avar_locs, axisOrder=["CKRN"])
     
-    # Deltas for XKRN (internal axis index 1):
-    # Values at Loc 1 (0.5) and Loc 2 (1.0):
-    # m1 (CKRN=0.5): we want XKRN = 0.707. Default is 1. Value relative to default is -0.293.
-    # m2 (CKRN=1.0): we want XKRN = 0. Default is 1. Value relative to default is -1.0.
-    # Master values for XKRN: [-0.293, -1.0]
-    
-    # Deltas for YKRN (internal axis index 2):
-    # m1 (CKRN=0.5): we want YKRN = 0.707. Default is 0. Value relative to default is +0.707.
-    # m2 (CKRN=1.0): we want YKRN = 1.0. Default is 0. Value relative to default is +1.0.
-    # Master values for YKRN: [+0.707, +1.0]
-    
-    
-    # Using lower level tools for avar2
     avar_regionList = buildVarRegionList(avar_model.supports[1:], ["CKRN", "XKRN", "YKRN"])
     
-    # Items for avar2
-    # Item 0 (CKRN): 0 deltas
-    # Item 1 (XKRN): computed deltas
-    # Item 2 (YKRN): computed deltas
-    
+    # Target values for XKRN (1 - cos(theta)) and YKRN (sin(theta))
     import math
-    vals_X = [0.0]
-    vals_Y = [0.0]
-    for i in range(1, 9):
-        theta = (i / 8.0) * (math.pi / 2)
-        vals_X.append(1 - math.cos(theta))
-        vals_Y.append(math.sin(theta))
+    targets_X = [0.0]
+    targets_Y = [0.0]
+    for i in range(1, num_segments + 1):
+        t = i / num_segments
+        angle = t * math.pi / 2
+        targets_X.append(1.0 - math.cos(angle))
+        targets_Y.append(math.sin(angle))
         
-    deltas_XKRN_raw = avar_model.getDeltas(vals_X)[1:]
-    deltas_YKRN_raw = avar_model.getDeltas(vals_Y)[1:]
-    deltas_CKRN_raw = avar_model.getDeltas([0.0] * 9)[1:]
+    deltas_XKRN_raw = avar_model.getDeltas(targets_X)[1:]
+    deltas_YKRN_raw = avar_model.getDeltas(targets_Y)[1:]
+    deltas_CKRN_raw = [0.0] * num_segments
     
     deltas_CKRN_int = [int(round(d * 16384)) for d in deltas_CKRN_raw]
     deltas_XKRN_int = [int(round(d * 16384)) for d in deltas_XKRN_raw]
     deltas_YKRN_int = [int(round(d * 16384)) for d in deltas_YKRN_raw]
     
-    avar_varData = buildVarData(list(range(8)), [ # Region indices 0 to 7
+    avar_varData = buildVarData(list(range(num_segments)), [ # Region indices 0 to num_segments-1
         deltas_CKRN_int,
         deltas_XKRN_int,
         deltas_YKRN_int
