@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 The Chromium Authors
+
 """
 Create a test font with avar2 variable kerning trace.
 Axes:
@@ -109,14 +111,25 @@ def main():
     }
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=1024, descent=0)
-    fb.setupOS2(sTypoAscender=1024, sTypoDescender=0, usWinAscent=1024, usWinDescent=0)
-    fb.setupPost()
+    fb.setupOS2(
+        sTypoAscender=1024,
+        sTypoDescender=0,
+        usWinAscent=1024,
+        usWinDescent=0,
+        achVendID="GOOG",
+        fsSelection=0x0040,
+        ulCodePageRange1=0x00000001, # Latin 1
+    )
+    fb.setupPost(isFixedPitch=1)
     fb.setupNameTable({
-        0: "Test Font",
-        1: "test_font",
-        4: "Test Font",
-        6: "TestFont"
+        0: "Copyright 2026 The Chromium Authors",
+        1: "AVAR2 kerning test",       # Family Name
+        4: "AVAR2 kerning test",       # Full Name
+        6: "AVAR2-kerning-test",      # PostScript Name
+        13: "SIL Open Font License", # License Description
+        14: "https://openfontlicense.org/documents/OFL.txt", # License Info URL
     })
+
     
     # Add axes
     axes = [
@@ -342,7 +355,7 @@ def main():
     # Loc 1: CKRN = 0.5
     # Loc 2: CKRN = 1.0
     #
-    num_segments = 10
+    num_segments = 20
     avar_locs = [{}] + [{"CKRN": i / num_segments} for i in range(1, num_segments + 1)]
     avar_model = VariationModel(avar_locs, axisOrder=["CKRN"])
     
